@@ -25,8 +25,9 @@ class UNet(Module):
             Linear(emb_dim, emb_dim)
         )
         self.in_conv = Conv2d(in_channels, dims[0], in_conv_kernel_size, padding = in_conv_kernel_size // 2)
-        self.out_conv = Conv2d(dims[0], out_channels, 1, bias=False)
-        #self.out_conv = Conv2d(dims[0], out_channels, 3, padding=1, bias=False)
+        
+        #self.out_conv = Conv2d(dims[0], out_channels, 1, bias=False)
+        self.out_conv = Conv2d(dims[0], out_channels, 3, padding=1, bias=False)
 
         def get_resblocks(lvl: int):
             return [ResBlock(dims[lvl], dims[lvl], emb_dim, dropouts[lvl]) for _ in range(num_resblocks[lvl])]
