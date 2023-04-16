@@ -12,7 +12,8 @@ class ConcatVDiffusion(Module):
         sample_quantile_dynamic_clip_q: float = 1.0,
         sample_intermediates_every_k_steps: int = 200,
         replace_eps_alpha: float = 0.0,
-        use_crash_schedule: bool = False
+        use_crash_schedule: bool = False,
+        do_scheduled_absolute_xclip: bool = False
     ) -> None:
         super().__init__()
         self.loss_type = loss_type
@@ -20,6 +21,7 @@ class ConcatVDiffusion(Module):
         self.sample_quantile_dynamic_clip_q = sample_quantile_dynamic_clip_q
         self.sample_intermediates_every_k_steps = sample_intermediates_every_k_steps
         self.replace_eps_alpha = replace_eps_alpha
+        self.do_scheduled_absolute_xclip = do_scheduled_absolute_xclip
         self.register_buffer('ts', torch.linspace(0, 1, timesteps + 1))
 
         if use_crash_schedule:
@@ -63,7 +65,9 @@ class ConcatVDiffusion(Module):
                 x0_pred = alpha * z_t - sigma * v_pred
                 eps_pred = sigma * z_t + alpha * v_pred
 
-            x0_pred = quantile_dynamic_clip(x0_pred, self.sample_quantile_dynamic_clip_q)
+            x0_pred = quantile_dynamic_xclip(x0_pred, self.sample_quantile_dynamic_clip_q)
+            if self.do_scheduled_absolute_xclip:
+                x0_pred = scheduled_absolute_xclip(x0_pred, alpha)
             eps_pred = replace_eps_noise(eps_pred, self.replace_eps_alpha)
 
             t_next = self.ts[step - 1]

@@ -64,13 +64,14 @@ class Block(Module):
 
 class ResBlock(Module):
     def __init__(
-        self, dim: int, dim_out: int, emb_dim: int, p_dropout: float = 0.0, group_dim: int = 16
+        self, dim: int, dim_out: int, emb_dim: int, p_dropout: float = 0.0, group_dim: int = 16,
+        groups=32
     ):
         super().__init__()
         assert dim % group_dim == 0
-        groups = dim
-        while(dim // groups > group_dim): 
-            groups = groups // 2
+        # groups = dim
+        # while(dim // groups > group_dim): 
+        #     groups = groups // 2
         self.register_buffer('root2', torch.sqrt(torch.tensor(2)))
         self.block1 = Block(dim, dim_out, groups, True, emb_dim)
         self.dropout = Dropout(p_dropout) if p_dropout else Identity()
@@ -144,4 +145,5 @@ class ImageSelfAttention2d(Module):
         y = x.reshape(b, w * h, c)
         y, _ = self.attn(y, y, y)
         y = y.reshape(b, c, w, h)
-        return (x + y) / self.root2
+        #return (x + y) / self.root2
+        return x + y

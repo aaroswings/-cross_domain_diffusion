@@ -29,7 +29,7 @@ def t_to_alpha_sigma(t):
 
     return alpha, sigma
 
-def quantile_dynamic_clip(x, q: float= 0.995):
+def quantile_dynamic_xclip(x, q: float= 0.995):
     """
     Intended as an option for z_t clipping. (Imagen)
     """
@@ -39,6 +39,10 @@ def quantile_dynamic_clip(x, q: float= 0.995):
     low_bound = torch.min(-s, -torch.ones_like(s))
     high_bound = torch.max(s, torch.ones_like(s))
     return torch.clip(x, low_bound, high_bound)
+
+def scheduled_absolute_xclip(x, alpha):
+    x_clip = torch.clip(x, -1., 1.)
+    return (x_clip * alpha) + (x * (1 - alpha))
 
 def sigma_dynamic_clip(x, sigma):
     """
