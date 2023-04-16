@@ -57,6 +57,7 @@ class Trainer:
         self.optimizer = None
 
     def resume_from_checkpoint(self):
+        self.update_checkpoint_paths()
         if self.checkpoint_to_resume_from == self.last_saved_checkpoint:
             return
         if not self.checkpoint_path.is_file():
@@ -66,6 +67,7 @@ class Trainer:
         self.net.load_state_dict(checkpoint['net_state'])
         self.optimizer.load_state_dict(checkpoint['opt_state'])
         self.ema.load_state_dict(checkpoint['ema_state'])
+        self.ema.lr_scheduler(checkpoint['lr_state'])
         self.last_saved_checkpoint = self.checkpoint_to_resume_from
         
     def save_checkpoint(self):
@@ -76,7 +78,8 @@ class Trainer:
             'global_batch_idx': self.global_step,
             'net_state': self.net.state_dict(),
             'opt_state': self.optimizer.state_dict(),
-            'ema_state': self.ema.state_dict()
+            'ema_state': self.ema.state_dict(),
+            'lr_state': self.lr_scheduler.state_dict()
         }, self.checkpoint_path)
         self.last_saved_checkpoint = self.checkpoint_to_resume_from
 
@@ -217,6 +220,7 @@ class Trainer:
             raise ValueError('Encountered NaN loss, stopping training.')
 
     def fit(self):
+        self.resume_from_checkpoint()
         for checkpoint_step in range(self.global_step, self.max_train_steps, self.checkpoint_every):
             print(f'====[ {checkpoint_step} / {self.max_train_steps} ]====')
             self.on_before_epoch_start()
