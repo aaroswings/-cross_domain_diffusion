@@ -67,7 +67,7 @@ class Trainer:
         self.net.load_state_dict(checkpoint['net_state'])
         self.optimizer.load_state_dict(checkpoint['opt_state'])
         self.ema.load_state_dict(checkpoint['ema_state'])
-        self.ema.lr_scheduler(checkpoint['lr_state'])
+        self.lr_scheduler.load_state_dict(checkpoint['lr_state'])
         self.last_saved_checkpoint = self.checkpoint_to_resume_from
         
     def save_checkpoint(self):
@@ -219,8 +219,14 @@ class Trainer:
         if torch.isnan(loss):
             raise ValueError('Encountered NaN loss, stopping training.')
 
-    def fit(self):
+    def on_train_start(self):
+        self.configure_data()
+        self.configure_model()
+        self.configure_optimizer()
         self.resume_from_checkpoint()
+
+    def fit(self):
+        self.on_train_start()
         for checkpoint_step in range(self.global_step, self.max_train_steps, self.checkpoint_every):
             print(f'====[ {checkpoint_step} / {self.max_train_steps} ]====')
             self.on_before_epoch_start()
