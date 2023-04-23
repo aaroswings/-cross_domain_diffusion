@@ -82,7 +82,7 @@ class ResBlock(Module):
         h = self.block1(x, emb)
         h = self.dropout(h)
         h = self.block2(h)
-        return h + self.skip(x)
+        return (h + self.skip(x)) / self.root2
     
 
 class Upsample(Module):
@@ -146,4 +146,4 @@ class ImageSelfAttention2d(Module):
         y, _ = self.attn(y, y, y)
         y = y.reshape(b, c, w, h)
         #return (x + y) / self.root2
-        return x + y
+        return y
