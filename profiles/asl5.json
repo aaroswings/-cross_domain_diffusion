@@ -5,7 +5,7 @@
         "emb_dim": 256,
         "dims": [128, 256, 384, 512, 512, 512],
         "dropouts": [0, 0, 0, 0, 0.1, 0.1],
-        "num_resblocks": [1, 2, 3, 6, 12, 24],
+        "num_resblocks": [1, 2, 4, 8, 8, 8],
         "use_attn": [false, false, false, false, true, true],
         "attn_heads": 4,
         "in_conv_kernel_size": 3
@@ -41,7 +41,7 @@
         ],
         "size": 256,
         "channels": [3, 1],
-        "batch_size": 10,
+        "batch_size": 7,
         "num_workers": 8
     }
 }
