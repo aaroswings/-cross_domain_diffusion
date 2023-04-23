@@ -159,6 +159,7 @@ class Trainer:
 
     def take_train_steps(self, steps):
         print(f'Training for {steps} steps.')
+        self.net.train()
         data_iter = iter(self.train_loader)
         for i in tqdm(range(steps)):
             try:
@@ -171,6 +172,7 @@ class Trainer:
 
     def validation_step(self):
         # Make a validation sample.
+        self.net.eval()
         xs_mask, zs_mask = self.get_validation_sample_batch()
         xs_none, zs_none = self.get_validation_sample_batch(False)
         self.save_samples(xs_mask, 'xs_mask')

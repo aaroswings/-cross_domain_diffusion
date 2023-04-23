@@ -82,7 +82,7 @@ class ResBlock(Module):
         h = self.block1(x, emb)
         h = self.dropout(h)
         h = self.block2(h)
-        return (h + self.skip(x)) / self.root2
+        return h + self.skip(x)
     
 
 class Upsample(Module):
@@ -129,7 +129,7 @@ class Downsample(Sequential):
 
 class ImageSelfAttention2d(Module): 
      """ 
-     Self-attention with a residual connection and a layer norm.
+     Self-attention with a layer norm.
      """ 
      def __init__(
         self, dim: int, num_heads: int, dropout: float
