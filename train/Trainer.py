@@ -10,6 +10,7 @@ from train.util import save_images
 from model.network.EMA import EMA
 from model.network.UNet import UNet
 from model.diffusion.ConcatVDiffusion import ConcatVDiffusion
+from model.diffusion.BlendDiffusion import BlendDiffusion
 
 """
 net_config keys: UNet class parameters
@@ -26,6 +27,7 @@ class Trainer:
         optim_config: dict,
         data_config: dict,
         profile: str='diffusion',
+        which_diffusion: str = 'ConcatVDiffusion',
         checkpoint_to_resume_from: int = 0,
         max_train_steps: int = 1000000,
         checkpoint_every: int = 10,
@@ -37,6 +39,7 @@ class Trainer:
         self.checkpoint_every = checkpoint_every
         self.net_config = net_config
         self.diffusion_config = diffusion_config
+        self.which_diffusion = which_diffusion
         self.ema_config = ema_config
         self.data_config = data_config
         self.optim_config = optim_config
@@ -144,7 +147,10 @@ class Trainer:
 
     def configure_model(self):
         self.net = UNet(**self.net_config).to(self.device)
-        self.diffusion = ConcatVDiffusion(**self.diffusion_config).to(self.device)
+        if self.which_diffusion == 'ConcatVDiffusion':
+            self.diffusion = ConcatVDiffusion(**self.diffusion_config).to(self.device)
+        elif self.which_diffusion == 'BlendDiffusion':
+            self.diffusion = BlendDiffusion(**self.diffusion_config).to(self.device)
         self.ema = EMA(
             self.net, None, 
             self.ema_config['ema_beta'],
