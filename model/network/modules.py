@@ -19,7 +19,7 @@ class FourierFeatures(Module):
         if dim_out % 2 != 0:
             raise ValueError("dim_out must be divisible by 2")
         self.num_features = num_features
-        self.weight = Parameter(torch.randn((num_features, dim_out // 2)) * std)
+        self.register_buffer('weight', torch.randn((num_features, dim_out // 2)) * std)
         self.scale = scale
 
     def forward(self, input):
