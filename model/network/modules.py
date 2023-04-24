@@ -23,7 +23,6 @@ class FourierFeatures(Module):
         self.scale = scale
 
     def forward(self, input):
-        super().__init__()
         if input.dim() != 2:
             raise ValueError("Expected input of (B x k) tensors.")
         if input.size(1) != self.num_features:
