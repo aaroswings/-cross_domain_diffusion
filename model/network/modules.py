@@ -29,7 +29,6 @@ class FourierFeatures(Module):
             raise ValueError(f"Expected input to have {self.num_features} features to encode.")
         
         f = self.scale * input @ self.weight
-        f = torch.chunk(f, self.num_features, dim=1)
 
         return torch.cat([f.cos(), f.sin()], dim=-1)
     
