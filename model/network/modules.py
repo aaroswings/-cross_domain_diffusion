@@ -8,20 +8,30 @@ from einops.layers.torch import Rearrange
 import math
 from typing import Optional
 
+    
 class FourierFeatures(Module):
+    # Fourier features for angles (phi, theta)
+    # For angular features, set scale to 1.
     def __init__(
-        self, dim_out: int, std: float = 16.
+        self, dim_out: int, std: float = 1., num_features: int = 1, scale: float = math.pi * 2
     ):
         super().__init__()
-        assert dim_out % 2 == 0
-        self.weight = Parameter(torch.randn(dim_out // 2) * std, requires_grad=False)
+        if dim_out % 2 != 0:
+            raise ValueError("dim_out must be divisible by 2")
+        self.num_features = num_features
+        self.weight = Parameter(torch.randn((num_features, dim_out // 2)) * std)
+        self.scale = scale
 
     def forward(self, input):
-        if input.dim() == 0:
-            input = torch.ones(1).to(input.device) * input
-        if torch.any(input <= 0.):
-            raise ValueError("Domain of the log function is positive real numbers.")
-        f = 2 * math.pi * torch.log(input)[:, None] @ self.weight[None, :]
+        super().__init__()
+        if input.dim() != 2:
+            raise ValueError("Expected input of (B x k) tensors.")
+        if input.size(1) != self.num_features:
+            raise ValueError(f"Expected input to have {self.num_features} features to encode.")
+        
+        f = self.scale * input @ self.weight
+        f = torch.chunk(f, self.num_features, dim=1)
+
         return torch.cat([f.cos(), f.sin()], dim=-1)
     
 

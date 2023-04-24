@@ -13,13 +13,15 @@ class UNet(Module):
         num_resblocks: Tuple[int] = (2, 2, 2, 2, 4, 4),
         use_attn: Tuple[bool] = (False, False, False, False, True, True),
         attn_heads: int = 4,
-        in_conv_kernel_size: int = 5
+        in_conv_kernel_size: int = 5,
+        t_dim_in: int = 1,
+        fourier_features_scale: float = math.pi * 2
     ):
         super().__init__()
         self.resolutions = len(dims)
         self.register_buffer('root2', torch.sqrt(torch.tensor(2)))
         self.time_mlp = Sequential(
-            FourierFeatures(dims[0], std=16.),
+            FourierFeatures(dims[0], std=1., num_features=t_dim_in, scale=fourier_features_scale),
             Linear(dims[0], emb_dim),
             GELU(),
             Linear(emb_dim, emb_dim)
@@ -63,8 +65,14 @@ class UNet(Module):
     def forward(self, x, t, c: Optional[torch.tensor] = None):
         """
         x: (B,C,H,W) tensor
-        t: (B,) tensor
+        t: (B,k) tensor
         """
+        # If t is not a (B,k) tensor, ensure it becomes one
+        if t.dim() == 0:
+            t = torch.ones(x.size(0), 1).to(self.get_device()) * t
+        elif t.dim() == 1:
+            t = t[:, None]
+        
         temb = self.time_mlp(t)
         hs = []
 
