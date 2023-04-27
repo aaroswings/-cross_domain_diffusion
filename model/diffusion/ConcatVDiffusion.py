@@ -4,6 +4,13 @@ from model.diffusion.util import *
 from typing import Optional
 from tqdm import tqdm
 
+"""
+To try with sampling:
+- renormalize when clipping x0 pred
+- play with replace_eps when sampling
+- use replace_all_mask_channel_eps when sampling
+"""
+
 class ConcatVDiffusion(Module):
     def __init__(
         self,
@@ -46,7 +53,8 @@ class ConcatVDiffusion(Module):
         self, net, x0, 
         x0_mask: Optional[torch.tensor] = None, 
         eps: Optional[torch.tensor] = None,
-        start_step: Optional[int] = None
+        start_step: Optional[int] = None,
+        replace_all_mask_channel_eps: bool = False
     ):
         start_step = start_step or self.timesteps
         eps = eps or torch.randn_like(x0)
@@ -68,6 +76,7 @@ class ConcatVDiffusion(Module):
             x0_pred = quantile_dynamic_xclip(x0_pred, self.sample_quantile_dynamic_clip_q)
             if self.do_scheduled_absolute_xclip:
                 x0_pred = scheduled_absolute_xclip(x0_pred, alpha)
+
             eps_pred = replace_eps_noise(eps_pred, self.replace_eps_alpha)
 
             t_next = self.ts[step - 1]
@@ -77,6 +86,12 @@ class ConcatVDiffusion(Module):
                 x0_pred if x0_mask is None
                 else x0 * x0_mask + x0_pred * (1. - x0_mask)
             )
+
+            eps_pred = (
+                eps_pred if not replace_all_mask_channel_eps
+                else torch.randn_like(eps_pred) * x0_mask + eps_pred * (1. - x0_mask)
+            )
+
             z_t = alpha_next * x0_pred + sigma_next * eps_pred
 
             if step % self.sample_intermediates_every_k_steps == 0 or step - 1 == 0:

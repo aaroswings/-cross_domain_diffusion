@@ -1,4 +1,5 @@
 import torch
+from torch.nn import Module
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
@@ -18,7 +19,7 @@ diffusion_config keys: Diffusion class parameters
 optim_config keys:
 """
 
-class Trainer:
+class Trainer(Module):
     def __init__(
         self,
         net_config: dict,
@@ -33,6 +34,7 @@ class Trainer:
         checkpoint_every: int = 10,
         device: str = 'cuda'
     ):
+        super().__init__()
         self.device = torch.device(device)
         self.profile = profile
         self.max_train_steps = max_train_steps
@@ -78,6 +80,7 @@ class Trainer:
         self.update_checkpoint_paths()
         os.makedirs(self.save_dir)
         torch.save({
+            'trainer_state': self.state_dict(),
             'global_batch_idx': self.global_step,
             'net_state': self.net.state_dict(),
             'opt_state': self.optimizer.state_dict(),
@@ -119,7 +122,7 @@ class Trainer:
             self.optim_config['end_warmup_lr'], 
             self.optim_config['end_lr'],
             self.optim_config['warmup_steps'],
-            self.max_train_steps - self.optim_config['warmup_steps']
+            self.optim_config['total_steps'] - self.optim_config['warmup_steps']
         )
 
     def configure_data(self):
