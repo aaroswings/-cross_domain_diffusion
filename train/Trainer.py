@@ -4,6 +4,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
 import os
+from typing import Optional
 
 from train.LinearWarmupLR import LinearWarmupLR
 from train.PairedDataset import PairedDataset
@@ -47,9 +48,11 @@ class Trainer(Module):
         self.optim_config = optim_config
         self.global_step = 0
         self.last_saved_checkpoint = 0
-        self.reset()
         self.checkpoint_to_resume_from = checkpoint_to_resume_from
 
+        self.reset()
+        self.setup()
+        
     def reset(self):
         self.writer = None
         self.scaler = None
@@ -91,6 +94,9 @@ class Trainer(Module):
 
     def on_before_epoch_start(self):
         self.update_checkpoint_paths()
+
+    def setup(self):
+        self.update_checkpoint_paths()
         if self.writer is None:
             self.writer = SummaryWriter(self.train_root)
         if self.scaler is None:
@@ -102,10 +108,14 @@ class Trainer(Module):
         if self.optimizer is None or self.lr_scheduler is None:
             self.configure_optimizer()
         self.resume_from_checkpoint()
-    
+
+
     def on_epoch_end(self):
         self.save_checkpoint()
-        self.validation_step()
+        if self.which_diffusion == 'ConcatVDiffusion':
+            self.validation_step(include_unmasked=True)
+        else:
+            self.validation_step(include_unmasked=False)
 
     def update_checkpoint_paths(self):
         self.train_root =  Path(f'./out/{self.profile}')
@@ -144,7 +154,7 @@ class Trainer(Module):
         self.val_loader = torch.utils.data.DataLoader(
             val_dataset, 
             self.data_config['batch_size'],
-            shuffle=True, 
+            shuffle=False, 
             num_workers=self.data_config['num_workers'])
         self.test_loader = None # todo
 
@@ -179,22 +189,31 @@ class Trainer(Module):
 
             self.forward_backward(x0)
 
-    def validation_step(self):
+    def validation_step(
+            self, 
+            num_batches: int = 1,
+            save_dir: Optional[str] = None, 
+            include_unmasked: bool = True,
+        ):
         # Make a validation sample.
+        val_iter = iter(self.val_loader)
         self.net.eval()
-        xs_mask, zs_mask = self.get_validation_sample_batch()
-        xs_none, zs_none = self.get_validation_sample_batch(False)
-        self.save_samples(xs_mask, 'xs_mask')
-        self.save_samples(zs_mask, 'zs_mask')
-        self.save_samples(xs_none, 'xs_none')
-        self.save_samples(zs_none, 'zs_none')
+        save_dir = Path(save_dir) if save_dir is not None else self.save_dir
+        try:
+            for batch_i in range(num_batches):
+                xs_mask, zs_mask = self.get_validation_sample_batch(val_iter=val_iter, pass_x0_mask=False)
+                self.save_samples(xs_mask, self.save_dir / f'{batch_i}_xs_mask')
+                self.save_samples(zs_mask, self.save_dir / f'{batch_i}_zs_mask')
 
-        # when saving, use self.data_config['channels']
-        # Todo implement this.
-        # Todo: Calculate FID.
+                if include_unmasked:
+                    xs_none, zs_none = self.get_validation_sample_batch(val_iter=val_iter, pass_x0_mask=False)
+                    self.save_samples(xs_none, self.save_dir / f'{batch_i}_xs_none')
+                    self.save_samples(zs_none, self.save_dir / f'{batch_i}_zs_none')
+        except StopIteration:
+            return
 
-    def get_validation_sample_batch(self, pass_x0_mask=True):
-        x0, x0_mask = self.batch_to_device(next(iter(self.val_loader)))
+    def get_validation_sample_batch(self, val_iter, pass_x0_mask=True):
+        x0, x0_mask = self.batch_to_device(next(val_iter))
         x0_mask = None if not pass_x0_mask else x0_mask
         xs, zs = self.diffusion.sample(
                 net=self.ema.ema_model, 
@@ -202,13 +221,11 @@ class Trainer(Module):
                 x0_mask=x0_mask)
         return xs, zs
 
-    def save_samples(self, samples, subdir):
-        path = self.save_dir / subdir
+    def save_samples(self, samples, path):
         os.makedirs(path)
         # kinda nasty
         channels_A = self.data_config['channels'][0]
         save_images(samples, path, channels_A)
-
 
     def forward_backward(self, x0):
         self.lr_scheduler.update()

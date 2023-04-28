@@ -1,0 +1,1 @@
+{"timesteps": 1000, "loss_type": "v", "sample_quantile_dynamic_clip_q": 1.0, "sample_intermediates_every_k_steps": 200, "replace_eps_alpha": 0.0, "use_crash_schedule": false, "do_scheduled_absolute_xclip": false}

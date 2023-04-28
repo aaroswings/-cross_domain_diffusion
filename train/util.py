@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from typing import List
 from sortedcollections import OrderedSet
-
+import torchvision.transforms.functional as TF
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -75,9 +75,12 @@ def save_images(
     images: List[torch.Tensor], 
     dir: Path,
     channel_split: int) -> None:
+
     os.makedirs(dir, exist_ok=True)
     for step_i, sample_batch in enumerate(images):
         for sample_i, sample in enumerate(sample_batch):
-            out_image = chunk_and_cat_pair(sample.cpu(), channel_split)
-            out_image.save(Path(dir) / f"sample_{sample_i}_step_{step_i}.jpeg")
+            sample = sample.cpu()
+            if channel_split is not None:
+                out_image = chunk_and_cat_pair(sample, channel_split)
+            out_image.save(Path(dir) / f"batch_idx_{sample_i}_step_{step_i}.jpeg")
 
