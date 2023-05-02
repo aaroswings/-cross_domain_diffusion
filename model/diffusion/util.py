@@ -30,15 +30,24 @@ def t_to_alpha_sigma(t):
     return alpha, sigma
 
 def quantile_dynamic_xclip(x, q: float= 0.995):
-    """
-    Intended as an option for z_t clipping. (Imagen)
-    """
     if q == 1.0:
         return x
     s = torch.quantile(x.view(x.size(0), -1).abs(), q, dim=1).max()
     low_bound = torch.min(-s, -torch.ones_like(s))
     high_bound = torch.max(s, torch.ones_like(s))
     return torch.clip(x, low_bound, high_bound)
+
+def quantile_dynamic_zclip(x, q: float= 0.995):
+    """
+    Intended as an option for z_t clipping. (Imagen)
+    """
+    if q == 1.0:
+        return x
+    s = torch.quantile(x.view(x.size(0), -1).abs(), q, dim=1)
+    s = s.view(-1, 1, 1, 1)
+    return torch.clip(x, -s, s)
+
+
 
 def scheduled_absolute_xclip(x, alpha):
     x_clip = torch.clip(x, -1., 1.)
@@ -60,3 +69,12 @@ def replace_eps_noise(gaussian_eps, alpha: float = 0.5) -> torch.Tensor:
     if alpha == 0.0:
         return gaussian_eps
     return torch.randn_like(gaussian_eps) * math.sqrt(alpha) + gaussian_eps * math.sqrt(1 - alpha)
+
+def scale_by_minmax(x: torch.Tensor, a=-1, b=1):
+    """
+    Compress an image into the range -1, 1
+    """
+    x_flat = x.view(x.size(0), -1)
+    min_x = x_flat.min(dim=1).values.view(-1, 1, 1, 1)
+    max_x = x_flat.max(dim=1).values.view(-1, 1, 1, 1)
+    return (b - a) * (x - min_x) / (max_x - min_x) + a

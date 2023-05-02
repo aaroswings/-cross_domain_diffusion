@@ -201,7 +201,7 @@ class Trainer(Module):
         save_dir = Path(save_dir) if save_dir is not None else self.save_dir
         try:
             for batch_i in range(num_batches):
-                xs_mask, zs_mask = self.get_validation_sample_batch(val_iter=val_iter, pass_x0_mask=False)
+                xs_mask, zs_mask = self.get_validation_sample_batch(val_iter=val_iter, pass_x0_mask=True)
                 self.save_samples(xs_mask, self.save_dir / f'{batch_i}_xs_mask')
                 self.save_samples(zs_mask, self.save_dir / f'{batch_i}_zs_mask')
 

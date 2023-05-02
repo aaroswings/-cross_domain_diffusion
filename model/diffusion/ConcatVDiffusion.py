@@ -19,28 +19,45 @@ class ConcatVDiffusion(Module):
         sample_quantile_dynamic_clip_q: float = 1.0,
         sample_intermediates_every_k_steps: int = 200,
         replace_eps_alpha: float = 0.0,
+        dynamic_clip: str = "x",
         use_crash_schedule: bool = False,
-        do_scheduled_absolute_xclip: bool = False
+        do_scheduled_absolute_xclip: bool = False,
+        normalize_latents: bool = False
     ) -> None:
         super().__init__()
         self.loss_type = loss_type
         self.timesteps = timesteps
         self.sample_quantile_dynamic_clip_q = sample_quantile_dynamic_clip_q
+        self.dynamic_clip = dynamic_clip
         self.sample_intermediates_every_k_steps = sample_intermediates_every_k_steps
         self.replace_eps_alpha = replace_eps_alpha
         self.do_scheduled_absolute_xclip = do_scheduled_absolute_xclip
+        self.normalize_latents = normalize_latents
         self.register_buffer('ts', torch.linspace(0, 1, timesteps + 1))
 
         if use_crash_schedule:
             self.ts = get_crash_schedule(self.ts)
 
-    def loss(self, net, x0):
+    def loss(
+        self, 
+        net: torch.nn.Module, 
+        x0: torch.Tensor, 
+        # Provide these to make some channels in x0 unperturbed by noise
+        # when input to the network and only predict v for the other channels,
+        # like in Palette
+        x0_mask: Optional[torch.Tensor] = None,
+        x0_channels_loss: Optional[int] = None
+    ):
+        x0_channels_loss = x0_channels_loss or x0.size(1)
         eps = torch.randn_like(x0)
         random_steps = torch.randint(1, high=self.timesteps, size=(x0.size(0),))
         t = self.ts[random_steps]
         alpha, sigma = t_to_alpha_sigma(t)
+
         z_t = alpha * x0 + sigma * eps
+        
         v = alpha * eps - sigma * x0
+        v = v[:, :x0_channels_loss, :, :]
 
         with torch.cuda.amp.autocast():
             v_pred = net(z_t, t)
@@ -67,13 +84,17 @@ class ConcatVDiffusion(Module):
         
         for step in tqdm(range(start_step, 0, -1)):
             t = self.ts[step]
+
             alpha, sigma = t_to_alpha_sigma(t)
             with torch.cuda.amp.autocast():
                 v_pred = net(z_t, t)
+
                 x0_pred = alpha * z_t - sigma * v_pred
                 eps_pred = sigma * z_t + alpha * v_pred
 
-            x0_pred = quantile_dynamic_xclip(x0_pred, self.sample_quantile_dynamic_clip_q)
+            # x component clipping, haven't had much luck with this
+            if self.dynamic_clip == "x":
+                x0_pred = quantile_dynamic_xclip(x0_pred, self.sample_quantile_dynamic_clip_q)
             if self.do_scheduled_absolute_xclip:
                 x0_pred = scheduled_absolute_xclip(x0_pred, alpha)
 
@@ -82,19 +103,19 @@ class ConcatVDiffusion(Module):
             t_next = self.ts[step - 1]
             alpha_next, sigma_next = t_to_alpha_sigma(t_next)
 
-            x0_pred = (
-                x0_pred if x0_mask is None
-                else x0 * x0_mask + x0_pred * (1. - x0_mask)
-            )
-
-            eps_pred = (
-                eps_pred if not replace_all_mask_channel_eps
-                else torch.randn_like(eps_pred) * x0_mask + eps_pred * (1. - x0_mask)
-            )
+            # Here's the guidance by concatenation during sampling step.
+            if x0_mask is not None:
+                x0_pred = x0 * x0_mask                      + x0_pred  * (1. - x0_mask)
+                eps_pred = torch.randn_like(eps) * x0_mask  + eps_pred * (1. - x0_mask) 
 
             z_t = alpha_next * x0_pred + sigma_next * eps_pred
 
+            if self.dynamic_clip == "z":
+                z_t = quantile_dynamic_zclip(z_t, self.sample_quantile_dynamic_clip_q)
+
             if step % self.sample_intermediates_every_k_steps == 0 or step - 1 == 0:
+                # x0_pred_scaled = scale_by_minmax(x0_pred)
+                # ret_xs.append(x0_pred_scaled)
                 ret_xs.append(x0_pred)
                 ret_zs.append(z_t)
 
